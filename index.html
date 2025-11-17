@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic Tac Toe</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Fredoka+One&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles for the game */
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation; /* Disable double-tap zoom on mobile */
+        }
+        
+        .game-title {
+            font-family: 'Fredoka One', cursive;
+            color: #4F46E5; /* Indigo-600 */
+        }
+
+        .game-cell {
+            font-family: 'Fredoka One', cursive;
+            width: 100px;
+            height: 100px;
+            font-size: 4rem; /* 64px */
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            background-color: #ffffff;
+            border: 4px solid #E5E7EB; /* Gray-200 */
+            border-radius: 0.5rem; /* 8px */
+            user-select: none; /* Prevent text selection */
+        }
+
+        /* Responsive cell size */
+        @media (max-width: 400px) {
+            .game-cell {
+                width: 80px;
+                height: 80px;
+                font-size: 3rem; /* 48px */
+            }
+        }
+
+        .game-cell:hover:not(.x):not(.o) {
+            background-color: #F3F4F6; /* Gray-100 */
+        }
+        
+        .game-cell.x {
+            color: #EF4444; /* Red-500 */
+        }
+        
+        .game-cell.o {
+            color: #3B82F6; /* Blue-500 */
+        }
+
+        /* Winning line highlight */
+        .game-cell.win {
+            background-color: #FDE047; /* Yellow-300 */
+            animation: pulse 0.5s 3;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        /* Custom Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease-in-out;
+        }
+        
+        .modal-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.75rem; /* 12px */
+            text-align: center;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transform: scale(0.9);
+            transition: all 0.3s ease-in-out;
+        }
+        
+        .modal-overlay.visible .modal-content {
+            transform: scale(1);
+        }
+
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 flex items-center justify-center min-h-screen p-4">
+
+    <div class="game-container w-full max-w-sm mx-auto">
+        <h1 class="game-title text-5xl md:text-6xl font-bold text-center mb-6">
+            Tic Tac Toe
+        </h1>
+        
+        <!-- Game Status Display -->
+        <div id="status-display" class="text-center text-xl md:text-2xl font-semibold mb-6 text-gray-600 h-8">
+            Player X's turn
+        </div>
+        
+        <!-- Game Board -->
+        <div class="grid grid-cols-3 gap-3 bg-gray-300 p-3 rounded-xl shadow-lg">
+            <!-- Cells will be 0-indexed -->
+            <div data-cell-index="0" class="game-cell"></div>
+            <div data-cell-index="1" class="game-cell"></div>
+            <div data-cell-index="2" class="game-cell"></div>
+            <div data-cell-index="3" class="game-cell"></div>
+            <div data-cell-index="4" class="game-cell"></div>
+            <div data-cell-index="5" class="game-cell"></div>
+            <div data-cell-index="6" class="game-cell"></div>
+            <div data-cell-index="7" class="game-cell"></div>
+            <div data-cell-index="8" class="game-cell"></div>
+        </div>
+        
+        <!-- Restart Button -->
+        <button id="restart-button" class="mt-8 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg text-lg shadow-md transition-all duration-200 transform active:scale-95">
+            Restart Game
+        </button>
+    </div>
+
+    <!-- Custom Modal for Game Over -->
+    <div id="game-over-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 id="modal-title" class="text-3xl font-bold mb-4 game-title" style="color: #333;"></h2>
+            <p id="modal-message" class="text-lg text-gray-700 mb-6">Great game!</p>
+            <button id="modal-restart-button" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg text-lg shadow-md transition-all duration-200 transform active:scale-95">
+                Play Again
+            </button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM Elements
+            const cells = document.querySelectorAll('.game-cell');
+            const statusDisplay = document.getElementById('status-display');
+            const restartButton = document.getElementById('restart-button');
+            const modal = document.getElementById('game-over-modal');
+            const modalTitle = document.getElementById('modal-title');
+            const modalRestartButton = document.getElementById('modal-restart-button');
+
+            // Game State
+            let gameActive = true;
+            let currentPlayer = 'X';
+            let gameState = ["", "", "", "", "", "", "", "", ""];
+
+            // Winning Combinations (indices)
+            const winningConditions = [
+                [0, 1, 2], // Rows
+                [3, 4, 5],
+                [6, 7, 8],
+                [0, 3, 6], // Columns
+                [1, 4, 7],
+                [2, 5, 8],
+                [0, 4, 8], // Diagonals
+                [2, 4, 6]
+            ];
+
+            // --- Game Functions ---
+
+            /**
+             * Handles a click on a cell
+             * @param {Event} e - The click event
+             */
+            function handleCellClick(e) {
+                const clickedCell = e.target;
+                const clickedCellIndex = parseInt(clickedCell.getAttribute('data-cell-index'));
+
+                // Check if cell is already played or game is over
+                if (gameState[clickedCellIndex] !== "" || !gameActive) {
+                    return;
+                }
+
+                // Update game state
+                updateCell(clickedCell, clickedCellIndex);
+                
+                // Check for win or draw
+                if (!checkGameStatus()) {
+                    // If game is not over, swap player
+                    swapPlayer();
+                }
+            }
+
+            /**
+             * Updates the UI and internal state for a played cell
+             * @param {HTMLElement} cell - The DOM element of the cell
+             * @param {number} index - The index of the cell (0-8)
+             */
+            function updateCell(cell, index) {
+                gameState[index] = currentPlayer;
+                cell.textContent = currentPlayer;
+                cell.classList.add(currentPlayer.toLowerCase());
+            }
+
+            /**
+             * Swaps the current player and updates the status display
+             */
+            function swapPlayer() {
+                currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+                statusDisplay.textContent = `Player ${currentPlayer}'s turn`;
+            }
+
+            /**
+             * Checks if the game has been won or if it's a draw
+             * @returns {boolean} - True if the game is over (win or draw), false otherwise
+             */
+            function checkGameStatus() {
+                let roundWon = false;
+                let winningLine = [];
+
+                for (let i = 0; i < winningConditions.length; i++) {
+                    const winCondition = winningConditions[i];
+                    const a = gameState[winCondition[0]];
+                    const b = gameState[winCondition[1]];
+                    const c = gameState[winCondition[2]];
+
+                    if (a === '' || b === '' || c === '') {
+                        continue; // This line is not a win yet
+                    }
+                    if (a === b && b === c) {
+                        roundWon = true;
+                        winningLine = winCondition; // Store the winning line
+                        break;
+                    }
+                }
+
+                if (roundWon) {
+                    handleWin(winningLine);
+                    return true;
+                }
+
+                // Check for Draw
+                if (!gameState.includes("")) {
+                    handleDraw();
+                    return true;
+                }
+
+                return false; // Game is not over
+            }
+
+            /**
+             * Handles the game win scenario
+             * @param {number[]} winningLine - Array of the 3 winning cell indices
+             */
+            function handleWin(winningLine) {
+                gameActive = false;
+                statusDisplay.textContent = `Player ${currentPlayer} Wins!`;
+
+                // Highlight winning cells
+                winningLine.forEach(index => {
+                    cells[index].classList.add('win');
+                });
+                
+                // Show modal after a short delay
+                setTimeout(() => {
+                    showModal(`Player ${currentPlayer} Wins!`);
+                }, 800);
+            }
+
+            /**
+             * Handles the game draw scenario
+             */
+            function handleDraw() {
+                gameActive = false;
+                statusDisplay.textContent = 'Game Ended in a Draw!';
+                
+                // Show modal
+                setTimeout(() => {
+                    showModal('It\'s a Draw!');
+                }, 500);
+            }
+
+            /**
+             * Resets the game to its initial state
+             */
+            function handleRestartGame() {
+                gameActive = true;
+                currentPlayer = 'X';
+                gameState = ["", "", "", "", "", "", "", "", ""];
+                
+                statusDisplay.textContent = `Player ${currentPlayer}'s turn`;
+                
+                cells.forEach(cell => {
+                    cell.textContent = '';
+                    cell.classList.remove('x', 'o', 'win');
+                });
+                
+                hideModal();
+            }
+
+            /**
+             * Shows the game over modal
+             * @param {string} title - The title to display in the modal
+             */
+            function showModal(title) {
+                modalTitle.textContent = title;
+                modal.classList.add('visible');
+            }
+
+            /**
+             * Hides the game over modal
+             */
+            function hideModal() {
+                modal.classList.remove('visible');
+            }
+
+            // --- Event Listeners ---
+            cells.forEach(cell => {
+                cell.addEventListener('click', handleCellClick);
+                // Add touchstart for faster response on mobile
+                cell.addEventListener('touchstart', (e) => {
+                    e.preventDefault(); // prevent "ghost" click
+                    handleCellClick(e);
+                }, { passive: false });
+            });
+
+            restartButton.addEventListener('click', handleRestartGame);
+            modalRestartButton.addEventListener('click', handleRestartGame);
+            // Also close modal if clicking overlay (optional)
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    hideModal();
+                }
+            });
+
+        });
+    </script>
+</body>
+</html>
